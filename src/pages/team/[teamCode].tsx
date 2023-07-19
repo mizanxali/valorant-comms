@@ -1,0 +1,258 @@
+import db from "@/db";
+
+import useTeamRoom from "@/hooks/useTeamRoom";
+import { Audio } from "@huddle01/react/components";
+import {
+  child,
+  get,
+  onValue,
+  ref,
+  remove,
+  set,
+  update,
+} from "firebase/database";
+import { useRouter } from "next/router";
+import { useEffect, useState } from "react";
+import { v4 as uuidv4 } from "uuid";
+import { ITeam } from "@/types";
+import usePartyRoom from "@/hooks/usePartyRoom";
+
+export default function Team() {
+  const router = useRouter();
+  const [myID, setMyID] = useState("");
+  const [team, setTeam] = useState<ITeam | null>(null);
+  const [isLoading, setIsLoading] = useState(true);
+
+  const { joinTeamVC, teamRoomPeers, teamPeerID } = useTeamRoom(myID);
+  const { joinPartyVC, partyRoomPeers, partyPeerID } = usePartyRoom(myID);
+
+  useEffect(() => {
+    window.addEventListener("beforeunload", quitTeam);
+    return () => {
+      window.removeEventListener("beforeunload", quitTeam);
+    };
+  }, [myID, team]);
+
+  useEffect(() => {
+    const { teamCode } = router.query;
+    if (!teamCode) return;
+    const teamRef = ref(db, "teams/" + teamCode);
+    onValue(teamRef, (snapshot) => {
+      const data = snapshot.val();
+      console.log("DB Update!", data);
+      setTeam(data);
+    });
+  }, [router.query]);
+
+  useEffect(() => {
+    const { teamCode } = router.query;
+    if (!teamCode) return;
+
+    const myNewID = uuidv4();
+
+    get(child(ref(db), `teams/${teamCode}`)).then((snapshot) => {
+      if (snapshot.exists()) {
+        const foundTeam: ITeam = snapshot.val();
+        console.log("Team found: ", team);
+
+        const myPlayerObj = {
+          id: myNewID,
+        };
+        foundTeam.players.push(myPlayerObj);
+
+        const newObj: any = {};
+        newObj[`teams/${teamCode}`] = foundTeam;
+
+        update(ref(db), newObj);
+
+        setIsLoading(false);
+        setTeam(foundTeam);
+        setMyID(myNewID);
+        joinTeamVC(foundTeam.roomID);
+      } else {
+        console.log("No team found. Creating...");
+
+        const teamID = uuidv4();
+        let roomID: string;
+
+        fetch("/api/create-team-room")
+          .then((resp) => {
+            return resp.json();
+          })
+          .then((data) => {
+            roomID = data.data.roomId;
+
+            const myPlayerObj = {
+              id: myNewID,
+            };
+
+            return set(ref(db, "teams/" + teamCode), {
+              id: teamID,
+              players: [myPlayerObj],
+              roomID,
+            });
+          })
+          .then(() => {
+            setIsLoading(false);
+            setMyID(myNewID);
+            joinTeamVC(roomID);
+          });
+      }
+    });
+  }, [router.query]);
+
+  const quitTeam = async (e: any) => {
+    e.preventDefault();
+    const { teamCode } = router.query;
+    const currentID = myID;
+
+    if (!team) return;
+
+    const newTeam = { ...team };
+
+    if (newTeam.players.length > 1) {
+      const removeIndex = newTeam.players.findIndex(
+        (player) => player.id === currentID
+      );
+
+      if (removeIndex > -1) {
+        const updatedPlayers = [
+          ...newTeam.players.slice(0, removeIndex),
+          ...newTeam.players.slice(removeIndex + 1),
+        ];
+        newTeam.players = [...updatedPlayers];
+      }
+
+      const newObj: any = {};
+      newObj[`teams/${teamCode}`] = newTeam;
+
+      await update(ref(db), newObj);
+    } else {
+      await remove(child(ref(db), `teams/${teamCode}`));
+    }
+
+    e.returnValue = "What's going on?";
+  };
+
+  const joinPartyHandler = async (playerID: string) => {
+    const { teamCode } = router.query;
+
+    if (!team || !teamCode) return;
+
+    const newTeam = { ...team };
+
+    const myPlayerObj = newTeam.players.find((player) => player.id === myID);
+
+    const otherPlayerObj = newTeam.players.find(
+      (player) => player.id === playerID
+    );
+
+    let roomID;
+
+    if (otherPlayerObj && myPlayerObj) {
+      if (otherPlayerObj.partyID && otherPlayerObj.partyRoomID) {
+        myPlayerObj.partyID = otherPlayerObj.partyID;
+        myPlayerObj.partyRoomID = otherPlayerObj.partyRoomID;
+        roomID = otherPlayerObj.partyRoomID;
+      } else {
+        const newPartyID = uuidv4();
+        myPlayerObj.partyID = newPartyID;
+        otherPlayerObj.partyID = newPartyID;
+
+        const resp = await fetch("/api/create-party-room");
+        const data = await resp.json();
+
+        roomID = data.data.roomId;
+
+        myPlayerObj.partyRoomID = roomID;
+        otherPlayerObj.partyRoomID = roomID;
+      }
+    }
+
+    const newObj: any = {};
+    newObj[`teams/${teamCode}`] = newTeam;
+
+    await update(ref(db), newObj);
+
+    joinPartyVC(roomID);
+  };
+
+  const leavePartyHandler = async () => {
+    const { teamCode } = router.query;
+
+    if (!team || !teamCode) return;
+
+    const newTeam = { ...team };
+
+    const myPlayerObj = newTeam.players.find((player) => player.id === myID);
+
+    if (myPlayerObj) {
+      myPlayerObj.partyID = null;
+      myPlayerObj.partyRoomID = null;
+    }
+
+    const newObj: any = {};
+    newObj[`teams/${teamCode}`] = newTeam;
+
+    await update(ref(db), newObj);
+  };
+
+  if (isLoading) return <div>Loading...</div>;
+
+  if (!team) return <div>Team not found</div>;
+
+  return (
+    <div>
+      <h1>Team ID: {team.id}</h1>
+      <h1>Your ID: {myID}</h1>
+
+      <div className="flex gap-4 justify-around">
+        {team.players.map((player, index) => (
+          <div className="flex-1 max-w-xs h-96 border-2 border-white rounded-lg flex flex-col items-center">
+            <h4> Player {index + 1}</h4>
+            <h6>Player ID: {player.id}</h6>
+            <h6>Player team peerID: {player.teamPeerID}</h6>
+            {player.teamPeerID &&
+              teamRoomPeers[player.teamPeerID] &&
+              teamRoomPeers[player.teamPeerID].mic && <h6>MIC ON</h6>}
+            {player.id !== myID &&
+              (player.partyID &&
+              player.partyID ===
+                team.players.find((p) => p.id === myID)?.partyID ? (
+                <>
+                  <button
+                    className="border-2 border-white rounded-lg p-2"
+                    onClick={() => leavePartyHandler()}
+                  >
+                    Leave Party
+                  </button>
+                </>
+              ) : (
+                <>
+                  <button
+                    className="border-2 border-white rounded-lg p-2"
+                    onClick={() => joinPartyHandler(player.id)}
+                  >
+                    Join Party
+                  </button>
+                </>
+              ))}
+          </div>
+        ))}
+      </div>
+      <div>
+        {Object.values(teamRoomPeers).map((peer) => (
+          <>
+            {peer.mic && <Audio peerId={peer.peerId} track={peer.mic} debug />}
+          </>
+        ))}
+      </div>
+      <div>
+        <button onClick={() => console.log(team)}>LOG TEAM</button>
+        <button onClick={() => console.log({ partyPeerID, teamPeerID })}>
+          LOG PEER IDs
+        </button>
+      </div>
+    </div>
+  );
+}
