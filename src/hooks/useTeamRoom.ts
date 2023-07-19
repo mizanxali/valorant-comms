@@ -49,7 +49,7 @@ export default function useTeamRoom(myID: string) {
           (player) => player.id === currentID
         );
 
-        if (myPlayerObj) myPlayerObj.teamPeerID = me.meId;
+        if (myPlayerObj) myPlayerObj.peerID = me.meId;
 
         const newObj: any = {};
         newObj[`teams/${teamCode}`] = foundTeam;
@@ -70,7 +70,7 @@ export default function useTeamRoom(myID: string) {
 
   const joinTeamVC = async (roomID: string) => {
     console.log("Joining VC room for team roomID: ", roomID);
-    initialize(process.env.NEXT_PUBLIC_HUDDLE01_TEAM_PROJECT_ID as string);
+    initialize(process.env.NEXT_PUBLIC_HUDDLE01_PROJECT_ID as string);
     await joinLobby(roomID);
     // await fetchAudioStream();
   };
@@ -90,6 +90,6 @@ export default function useTeamRoom(myID: string) {
   return {
     joinTeamVC,
     teamRoomPeers: peers,
-    teamPeerID: me.meId,
+    peerID: me.meId,
   };
 }

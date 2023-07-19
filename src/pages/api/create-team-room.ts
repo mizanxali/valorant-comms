@@ -13,7 +13,7 @@ const handler = async (req: NextApiRequest, res: NextApiResponse) => {
       {
         headers: {
           "Content-Type": "application/json",
-          "x-api-key": process.env.HUDDLE01_TEAM_API_KEY,
+          "x-api-key": process.env.HUDDLE01_API_KEY,
         },
       }
     );

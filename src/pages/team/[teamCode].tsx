@@ -15,7 +15,6 @@ import { useRouter } from "next/router";
 import { useEffect, useState } from "react";
 import { v4 as uuidv4 } from "uuid";
 import { ITeam } from "@/types";
-import usePartyRoom from "@/hooks/usePartyRoom";
 
 export default function Team() {
   const router = useRouter();
@@ -23,8 +22,7 @@ export default function Team() {
   const [team, setTeam] = useState<ITeam | null>(null);
   const [isLoading, setIsLoading] = useState(true);
 
-  const { joinTeamVC, teamRoomPeers, teamPeerID } = useTeamRoom(myID);
-  const { joinPartyVC, partyRoomPeers, partyPeerID } = usePartyRoom(myID);
+  const { joinTeamVC, teamRoomPeers, peerID } = useTeamRoom(myID);
 
   useEffect(() => {
     window.addEventListener("beforeunload", quitTeam);
@@ -147,25 +145,13 @@ export default function Team() {
       (player) => player.id === playerID
     );
 
-    let roomID;
-
     if (otherPlayerObj && myPlayerObj) {
-      if (otherPlayerObj.partyID && otherPlayerObj.partyRoomID) {
+      if (otherPlayerObj.partyID) {
         myPlayerObj.partyID = otherPlayerObj.partyID;
-        myPlayerObj.partyRoomID = otherPlayerObj.partyRoomID;
-        roomID = otherPlayerObj.partyRoomID;
       } else {
         const newPartyID = uuidv4();
         myPlayerObj.partyID = newPartyID;
         otherPlayerObj.partyID = newPartyID;
-
-        const resp = await fetch("/api/create-party-room");
-        const data = await resp.json();
-
-        roomID = data.data.roomId;
-
-        myPlayerObj.partyRoomID = roomID;
-        otherPlayerObj.partyRoomID = roomID;
       }
     }
 
@@ -173,8 +159,6 @@ export default function Team() {
     newObj[`teams/${teamCode}`] = newTeam;
 
     await update(ref(db), newObj);
-
-    joinPartyVC(roomID);
   };
 
   const leavePartyHandler = async () => {
@@ -186,10 +170,7 @@ export default function Team() {
 
     const myPlayerObj = newTeam.players.find((player) => player.id === myID);
 
-    if (myPlayerObj) {
-      myPlayerObj.partyID = null;
-      myPlayerObj.partyRoomID = null;
-    }
+    if (myPlayerObj) myPlayerObj.partyID = null;
 
     const newObj: any = {};
     newObj[`teams/${teamCode}`] = newTeam;
@@ -211,10 +192,10 @@ export default function Team() {
           <div className="flex-1 max-w-xs h-96 border-2 border-white rounded-lg flex flex-col items-center">
             <h4> Player {index + 1}</h4>
             <h6>Player ID: {player.id}</h6>
-            <h6>Player team peerID: {player.teamPeerID}</h6>
-            {player.teamPeerID &&
-              teamRoomPeers[player.teamPeerID] &&
-              teamRoomPeers[player.teamPeerID].mic && <h6>MIC ON</h6>}
+            <h6>Player peerID: {player.peerID}</h6>
+            {player.peerID &&
+              teamRoomPeers[player.peerID] &&
+              teamRoomPeers[player.peerID].mic && <h6>MIC ON</h6>}
             {player.id !== myID &&
               (player.partyID &&
               player.partyID ===
@@ -249,9 +230,7 @@ export default function Team() {
       </div>
       <div>
         <button onClick={() => console.log(team)}>LOG TEAM</button>
-        <button onClick={() => console.log({ partyPeerID, teamPeerID })}>
-          LOG PEER IDs
-        </button>
+        <button onClick={() => console.log({ peerID })}>LOG PEER IDs</button>
       </div>
     </div>
   );

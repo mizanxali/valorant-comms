@@ -6,8 +6,6 @@ export interface ITeam {
 
 export interface IPlayer {
   id: string;
-  teamPeerID?: string;
-  partyPeerID?: string | null;
+  peerID?: string;
   partyID?: string | null;
-  partyRoomID?: string | null;
 }
