@@ -1,5 +1,4 @@
 import { useHuddle01 } from "@huddle01/react";
-
 import db from "@/db";
 import {
   useAudio,
@@ -8,22 +7,28 @@ import {
   usePeers,
   useRoom,
 } from "@huddle01/react/hooks";
-import { useEffect } from "react";
-
+import { useEffect, useMemo } from "react";
+import { ITeam } from "@/types";
 import { child, get, ref, update } from "firebase/database";
 import { useRouter } from "next/router";
-import { ITeam } from "@/types";
 
-export default function useTeamRoom(myID: string) {
+export default function useVoiceChatRoom(myID: string, team: ITeam | null) {
   const router = useRouter();
 
-  const { initialize, isInitialized, me } = useHuddle01();
+  const partyPeers = useMemo(() => {
+    const partyID = team?.players.find((p) => p.id === myID)?.partyID;
+    const partyPeers: string[] = [];
+    team?.players.map((player) => {
+      if (player.partyID === partyID) partyPeers.push(player.id);
+    });
+    return partyPeers;
+  }, [team]);
+
+  const { initialize, me } = useHuddle01();
   const { joinLobby } = useLobby();
   const {
-    stream: audioStream,
     fetchAudioStream,
     stopAudioStream,
-    error: micError,
     produceAudio,
     stopProducingAudio,
   } = useAudio();
@@ -32,7 +37,6 @@ export default function useTeamRoom(myID: string) {
 
   useEventListener("lobby:joined", async () => {
     joinRoom();
-    // if (audioStream) await produceAudio(audioStream);
   });
 
   useEffect(() => {
@@ -72,7 +76,6 @@ export default function useTeamRoom(myID: string) {
     console.log("Joining VC room for team roomID: ", roomID);
     initialize(process.env.NEXT_PUBLIC_HUDDLE01_PROJECT_ID as string);
     await joinLobby(roomID);
-    // await fetchAudioStream();
   };
 
   const onKeyUpHandler = (event: KeyboardEvent) => {
@@ -82,14 +85,23 @@ export default function useTeamRoom(myID: string) {
   };
 
   const onKeyDownHandler = async (event: KeyboardEvent) => {
-    if (event.key !== "Shift") return;
-    const micStream = await fetchAudioStream();
-    if (micStream) await produceAudio(micStream);
+    console.log(event.key);
+
+    if (event.key === "Shift") {
+      console.log("Producing audio to team peers...");
+      const micStream = await fetchAudioStream();
+      if (micStream) await produceAudio(micStream);
+    } else if (event.key === "Control") {
+      console.log("Producing audio to party peers: ", partyPeers);
+      const micStream = await fetchAudioStream();
+      if (micStream) await produceAudio(micStream, [partyPeers]);
+    }
   };
 
   return {
     joinTeamVC,
-    teamRoomPeers: peers,
+    teamPeers: peers,
     peerID: me.meId,
+    partyPeers,
   };
 }

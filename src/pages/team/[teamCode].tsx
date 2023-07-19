@@ -1,6 +1,6 @@
 import db from "@/db";
 
-import useTeamRoom from "@/hooks/useTeamRoom";
+import useVoiceChatRoom from "@/hooks/useVoiceChatRoom";
 import { Audio } from "@huddle01/react/components";
 import {
   child,
@@ -22,7 +22,10 @@ export default function Team() {
   const [team, setTeam] = useState<ITeam | null>(null);
   const [isLoading, setIsLoading] = useState(true);
 
-  const { joinTeamVC, teamRoomPeers, peerID } = useTeamRoom(myID);
+  const { joinTeamVC, teamPeers, partyPeers, peerID } = useVoiceChatRoom(
+    myID,
+    team
+  );
 
   useEffect(() => {
     window.addEventListener("beforeunload", quitTeam);
@@ -194,8 +197,8 @@ export default function Team() {
             <h6>Player ID: {player.id}</h6>
             <h6>Player peerID: {player.peerID}</h6>
             {player.peerID &&
-              teamRoomPeers[player.peerID] &&
-              teamRoomPeers[player.peerID].mic && <h6>MIC ON</h6>}
+              teamPeers[player.peerID] &&
+              teamPeers[player.peerID].mic && <h6>MIC ON</h6>}
             {player.id !== myID &&
               (player.partyID &&
               player.partyID ===
@@ -222,7 +225,7 @@ export default function Team() {
         ))}
       </div>
       <div>
-        {Object.values(teamRoomPeers).map((peer) => (
+        {Object.values(teamPeers).map((peer) => (
           <>
             {peer.mic && <Audio peerId={peer.peerId} track={peer.mic} debug />}
           </>
