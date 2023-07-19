@@ -31,6 +31,8 @@ export default function useVoiceChatRoom(myID: string, team: ITeam | null) {
     stopAudioStream,
     produceAudio,
     stopProducingAudio,
+    createMicConsumer,
+    closeMicConsumer,
   } = useAudio();
   const { joinRoom, leaveRoom } = useRoom();
   const { peers } = usePeers();
@@ -98,10 +100,20 @@ export default function useVoiceChatRoom(myID: string, team: ITeam | null) {
     }
   };
 
+  const mutePeer = async (peerID: string) => {
+    await closeMicConsumer(peerID);
+  };
+
+  const unmutePeer = async (peerID: string) => {
+    await createMicConsumer(peerID);
+  };
+
   return {
     joinTeamVC,
     teamPeers: peers,
     peerID: me.meId,
-    partyPeers,
+    partyPeerIDs: partyPeers,
+    mutePeer,
+    unmutePeer,
   };
 }

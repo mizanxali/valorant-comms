@@ -22,10 +22,8 @@ export default function Team() {
   const [team, setTeam] = useState<ITeam | null>(null);
   const [isLoading, setIsLoading] = useState(true);
 
-  const { joinTeamVC, teamPeers, partyPeers, peerID } = useVoiceChatRoom(
-    myID,
-    team
-  );
+  const { joinTeamVC, teamPeers, partyPeerIDs, peerID, unmutePeer, mutePeer } =
+    useVoiceChatRoom(myID, team);
 
   useEffect(() => {
     window.addEventListener("beforeunload", quitTeam);
