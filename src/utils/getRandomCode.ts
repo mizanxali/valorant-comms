@@ -1,4 +1,4 @@
-export default function getRandomCode(length: number) {
+const getRandomCode = (length: number) => {
   var result = "";
   var characters =
     "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789";
@@ -7,4 +7,6 @@ export default function getRandomCode(length: number) {
     result += characters.charAt(Math.floor(Math.random() * charactersLength));
   }
   return result;
-}
+};
+
+export default getRandomCode;

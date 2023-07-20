@@ -35,70 +35,67 @@ export default function Team() {
   useEffect(() => {
     const { teamCode } = router.query;
     if (!teamCode) return;
+
+    findOrCreateTeam(teamCode as string);
+  }, [router.query]);
+
+  const findOrCreateTeam = async (teamCode: string) => {
+    const myNewID = uuidv4();
+    const snapshot = await get(child(ref(db), `teams/${teamCode}`));
+
+    if (snapshot.exists()) {
+      const foundTeam: ITeam = snapshot.val();
+      console.log("Team found: ", team);
+
+      const myPlayerObj = {
+        id: myNewID,
+      };
+      foundTeam.players.push(myPlayerObj);
+
+      const newObj: any = {};
+      newObj[`teams/${teamCode}`] = foundTeam;
+
+      update(ref(db), newObj);
+
+      setIsLoading(false);
+      setTeam(foundTeam);
+      setMyID(myNewID);
+      joinTeamVC(foundTeam.roomID);
+    } else {
+      console.log("No team found. Creating...");
+
+      const teamID = uuidv4();
+      let roomID: string;
+
+      //create a Huddle01 room
+      const resp = await fetch("/api/create-room");
+      const { data } = await resp.json();
+
+      roomID = data.roomId;
+
+      const myPlayerObj = {
+        id: myNewID,
+      };
+
+      await set(ref(db, "teams/" + teamCode), {
+        id: teamID,
+        players: [myPlayerObj],
+        roomID,
+      });
+
+      setIsLoading(false);
+      setMyID(myNewID);
+      joinTeamVC(roomID);
+    }
+
+    //subscribe to realtime changes in Firebase DB
     const teamRef = ref(db, "teams/" + teamCode);
     onValue(teamRef, (snapshot) => {
       const data = snapshot.val();
       console.log("DB Update!", data);
       setTeam(data);
     });
-  }, [router.query]);
-
-  useEffect(() => {
-    const { teamCode } = router.query;
-    if (!teamCode) return;
-
-    const myNewID = uuidv4();
-
-    get(child(ref(db), `teams/${teamCode}`)).then((snapshot) => {
-      if (snapshot.exists()) {
-        const foundTeam: ITeam = snapshot.val();
-        console.log("Team found: ", team);
-
-        const myPlayerObj = {
-          id: myNewID,
-        };
-        foundTeam.players.push(myPlayerObj);
-
-        const newObj: any = {};
-        newObj[`teams/${teamCode}`] = foundTeam;
-
-        update(ref(db), newObj);
-
-        setIsLoading(false);
-        setTeam(foundTeam);
-        setMyID(myNewID);
-        joinTeamVC(foundTeam.roomID);
-      } else {
-        console.log("No team found. Creating...");
-
-        const teamID = uuidv4();
-        let roomID: string;
-
-        fetch("/api/create-team-room")
-          .then((resp) => {
-            return resp.json();
-          })
-          .then((data) => {
-            roomID = data.data.roomId;
-
-            const myPlayerObj = {
-              id: myNewID,
-            };
-
-            return set(ref(db, "teams/" + teamCode), {
-              id: teamID,
-              players: [myPlayerObj],
-              roomID,
-            });
-          })
-          .then(() => {
-            setIsLoading(false);
-            setMyID(myNewID);
-            joinTeamVC(roomID);
-          });
-      }
-    });
-  }, [router.query]);
+  };
 
   const quitTeam = async (e: any) => {
     e.preventDefault();
@@ -130,7 +127,7 @@ export default function Team() {
       await remove(child(ref(db), `teams/${teamCode}`));
     }
 
-    e.returnValue = "What's going on?";
+    e.returnValue = "Quit team!";
   };
 
   const joinPartyHandler = async (playerID: string) => {
