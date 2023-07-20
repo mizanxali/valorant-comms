@@ -51,6 +51,8 @@ export default function Team() {
       const foundTeam: ITeam = snapshot.val();
       console.log("Team found: ", team);
 
+      if (foundTeam.players.length === 5) return;
+
       const myPlayerObj = {
         id: myNewID,
       };
