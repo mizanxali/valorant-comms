@@ -34,13 +34,15 @@ export default function useVoiceChatRoom(myID: string, team: ITeam | null) {
     createMicConsumer,
     closeMicConsumer,
   } = useAudio();
-  const { joinRoom, leaveRoom } = useRoom();
+  const { joinRoom } = useRoom();
   const { peers } = usePeers();
 
+  //auto-join room as soon as user enters Huddle01 lobby
   useEventListener("lobby:joined", async () => {
     joinRoom();
   });
 
+  //save peerID in Firebase when Huddle01 Client is initialized
   useEffect(() => {
     const { teamCode } = router.query;
     const currentID = myID;
@@ -65,6 +67,7 @@ export default function useVoiceChatRoom(myID: string, team: ITeam | null) {
     });
   }, [me.meId, router.query, myID]);
 
+  //add event listeners for push to talk mechanism
   useEffect(() => {
     window.addEventListener("keyup", onKeyUpHandler);
     window.addEventListener("keydown", onKeyDownHandler);
@@ -74,28 +77,36 @@ export default function useVoiceChatRoom(myID: string, team: ITeam | null) {
     };
   }, []);
 
+  //join Huddle01 room
   const joinTeamVC = async (roomID: string) => {
     console.log("Joining VC room for team roomID: ", roomID);
     initialize(process.env.NEXT_PUBLIC_HUDDLE01_PROJECT_ID as string);
     await joinLobby(roomID);
   };
 
+  //push to talk key released - turn mic off
   const onKeyUpHandler = (event: KeyboardEvent) => {
-    if (event.key !== "Shift") return;
-    stopProducingAudio();
-    stopAudioStream();
+    if (event.key === "Shift" || event.key === "Control") {
+      stopProducingAudio();
+      stopAudioStream();
+    }
   };
 
+  //push to talk key pressed - turn mic on
   const onKeyDownHandler = async (event: KeyboardEvent) => {
-    console.log(event.key);
-
+    //shift key pressed for team voice chat
     if (event.key === "Shift") {
       console.log("Producing audio to team peers...");
       const micStream = await fetchAudioStream();
+      //send audio stream to all peers in room
       if (micStream) await produceAudio(micStream);
-    } else if (event.key === "Control") {
+    }
+    //control key pressed for party voice chat
+    else if (event.key === "Control") {
       console.log("Producing audio to party peers: ", partyPeers);
       const micStream = await fetchAudioStream();
+      //send audio stream to only peers in current party
+      // @ts-ignore
       if (micStream) await produceAudio(micStream, [partyPeers]);
     }
   };
@@ -111,8 +122,6 @@ export default function useVoiceChatRoom(myID: string, team: ITeam | null) {
   return {
     joinTeamVC,
     teamPeers: peers,
-    peerID: me.meId,
-    partyPeerIDs: partyPeers,
     mutePeer,
     unmutePeer,
   };

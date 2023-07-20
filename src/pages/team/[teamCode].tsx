@@ -1,7 +1,10 @@
 import db from "@/db";
 
+import PlayerCard from "@/components/PlayerCard";
 import useVoiceChatRoom from "@/hooks/useVoiceChatRoom";
+import { ITeam } from "@/types";
 import { Audio } from "@huddle01/react/components";
+import { Grid, Loading } from "@nextui-org/react";
 import {
   child,
   get,
@@ -14,7 +17,6 @@ import {
 import { useRouter } from "next/router";
 import { useEffect, useState } from "react";
 import { v4 as uuidv4 } from "uuid";
-import { ITeam } from "@/types";
 
 export default function Team() {
   const router = useRouter();
@@ -22,8 +24,10 @@ export default function Team() {
   const [team, setTeam] = useState<ITeam | null>(null);
   const [isLoading, setIsLoading] = useState(true);
 
-  const { joinTeamVC, teamPeers, partyPeerIDs, peerID, unmutePeer, mutePeer } =
-    useVoiceChatRoom(myID, team);
+  const { joinTeamVC, teamPeers, unmutePeer, mutePeer } = useVoiceChatRoom(
+    myID,
+    team
+  );
 
   useEffect(() => {
     window.addEventListener("beforeunload", quitTeam);
@@ -176,59 +180,58 @@ export default function Team() {
     await update(ref(db), newObj);
   };
 
-  if (isLoading) return <div>Loading...</div>;
-
-  if (!team) return <div>Team not found</div>;
+  if (isLoading || !team)
+    return (
+      <div className="w-full h-screen flex items-center justify-center">
+        <Loading />
+      </div>
+    );
 
   return (
     <div>
-      <h1>Team ID: {team.id}</h1>
-      <h1>Your ID: {myID}</h1>
+      <h1 className="my-4 text-4xl text-center">
+        Valorant In-Game Communication System
+      </h1>
+      <h1 className="my-2 text-2xl text-center">
+        Team Code: {router.query.teamCode}
+      </h1>
+      <h1 className="text-xl text-center">Your ID: {myID}</h1>
 
       <div className="flex gap-4 justify-around">
-        {team.players.map((player, index) => (
-          <div className="flex-1 max-w-xs h-96 border-2 border-white rounded-lg flex flex-col items-center">
-            <h4> Player {index + 1}</h4>
-            <h6>Player ID: {player.id}</h6>
-            <h6>Player peerID: {player.peerID}</h6>
-            {player.peerID &&
-              teamPeers[player.peerID] &&
-              teamPeers[player.peerID].mic && <h6>MIC ON</h6>}
-            {player.id !== myID &&
-              (player.partyID &&
-              player.partyID ===
-                team.players.find((p) => p.id === myID)?.partyID ? (
-                <>
-                  <button
-                    className="border-2 border-white rounded-lg p-2"
-                    onClick={() => leavePartyHandler()}
-                  >
-                    Leave Party
-                  </button>
-                </>
-              ) : (
-                <>
-                  <button
-                    className="border-2 border-white rounded-lg p-2"
-                    onClick={() => joinPartyHandler(player.id)}
-                  >
-                    Join Party
-                  </button>
-                </>
-              ))}
-          </div>
-        ))}
+        {team.players.map((player, index) => {
+          const isMe = player.id === myID;
+          const isPlayerInMyParty = !!(
+            !isMe &&
+            player.partyID &&
+            player.partyID === team.players.find((p) => p.id === myID)?.partyID
+          );
+          const isPlayerSpeaking = !!(
+            player.peerID &&
+            teamPeers[player.peerID] &&
+            teamPeers[player.peerID].mic
+          );
+
+          return (
+            <Grid.Container gap={2} justify="center">
+              <Grid>
+                <PlayerCard
+                  playerID={player.id}
+                  index={index}
+                  isMe={isMe}
+                  isPlayerInMyParty={isPlayerInMyParty}
+                  isPlayerSpeaking={isPlayerSpeaking}
+                  joinPartyHandler={joinPartyHandler}
+                  leavePartyHandler={leavePartyHandler}
+                />
+              </Grid>
+            </Grid.Container>
+          );
+        })}
       </div>
       <div>
         {Object.values(teamPeers).map((peer) => (
-          <>
-            {peer.mic && <Audio peerId={peer.peerId} track={peer.mic} debug />}
-          </>
+          <>{peer.mic && <Audio peerId={peer.peerId} track={peer.mic} />}</>
         ))}
-      </div>
-      <div>
-        <button onClick={() => console.log(team)}>LOG TEAM</button>
-        <button onClick={() => console.log({ peerID })}>LOG PEER IDs</button>
       </div>
     </div>
   );
